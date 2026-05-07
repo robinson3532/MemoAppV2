@@ -359,7 +359,8 @@ class MainWindow(QMainWindow):
         self._setup_shortcuts()
         self._setup_status_bar()
 
-        # 起動時にツリーを描画
+        # 起動時：カテゴリをエディタに先にセットしてからツリーを描画
+        self.editor_panel.refresh_categories(self.nm.categories)
         self.tree_panel.refresh()
 
     def _build_ui(self):

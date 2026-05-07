@@ -34,11 +34,19 @@ class CodeEditor(QPlainTextEdit):
         self._extra_cursors: list[QTextCursor] = []
 
     def _line_number_area_width(self) -> int:
-        digits = max(1, len(str(self.blockCount())))
-        return 10 + self.fontMetrics().horizontalAdvance("9") * digits
+        # 万の位（5桁）まで常に確保、それ以上は動的に拡張
+        digits = max(5, len(str(self.blockCount())))
+        return 16 + self.fontMetrics().horizontalAdvance("9") * digits
 
     def _update_line_number_area_width(self, _):
-        self.setViewportMargins(self._line_number_area_width(), 0, 0, 0)
+        w = self._line_number_area_width()
+        self.setViewportMargins(w, 0, 0, 0)
+        # line_number_areaの幅も即時更新
+        cr = self.contentsRect()
+        from PyQt6.QtCore import QRect
+        self.line_number_area.setGeometry(
+            QRect(cr.left(), cr.top(), w, cr.height())
+        )
 
     def _update_line_number_area(self, rect, dy):
         if dy:
@@ -50,11 +58,7 @@ class CodeEditor(QPlainTextEdit):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        cr = self.contentsRect()
-        from PyQt6.QtCore import QRect
-        self.line_number_area.setGeometry(
-            QRect(cr.left(), cr.top(), self._line_number_area_width(), cr.height())
-        )
+        self._update_line_number_area_width(0)
 
     def _paint_line_numbers(self, event):
         from PyQt6.QtGui import QPainter, QColor
@@ -257,13 +261,27 @@ class EditorPanel(QWidget):
             return
         self.title_edit.blockSignals(True)
         self.editor.blockSignals(True)
+        self.cat_combo.blockSignals(True)
+
         self.title_edit.setText(note["title"])
         self.editor.setPlainText(note["body"])
+
+        # カテゴリをコンボボックスに確実に反映
+        # cat_comboが空の場合はカテゴリ一覧を再構築してからセット
+        if self.cat_combo.count() == 0:
+            self.cat_combo.addItems(self.nm.categories)
         idx = self.cat_combo.findText(note["category"])
         if idx >= 0:
             self.cat_combo.setCurrentIndex(idx)
+        else:
+            # 見つからない場合は「未分類」にフォールバック
+            fallback = self.cat_combo.findText("未分類")
+            if fallback >= 0:
+                self.cat_combo.setCurrentIndex(fallback)
+
         self.title_edit.blockSignals(False)
         self.editor.blockSignals(False)
+        self.cat_combo.blockSignals(False)
         self._refresh_attachments(note)
         self._update_char_count()
 
